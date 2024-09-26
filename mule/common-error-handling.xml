@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule
+xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	    xmlns:vm="http://www.mulesoft.org/schema/mule/vm"
+    xmlns:json-logger="http://www.mulesoft.org/schema/mule/json-logger"
+    xmlns:cloudhub="http://www.mulesoft.org/schema/mule/cloudhub"
+    xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+  xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/cloudhub http://www.mulesoft.org/schema/mule/cloudhub/current/mule-cloudhub.xsd
+http://www.mulesoft.org/schema/mule/json-logger http://www.mulesoft.org/schema/mule/json-logger/current/mule-json-logger.xsd
+http://www.mulesoft.org/schema/mule/vm http://www.mulesoft.org/schema/mule/vm/current/mule-vm.xsd">
+	<error-handler name="global-error-handler" doc:id="c9d14ea1-0d35-4426-aa23-2a71a6f1484c" >
+        <on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="34ee84d3-0646-44f8-b2de-3b02102ee2e4" type="ANY">
+			<flow-ref doc:name="Global prepare error subflow" doc:id="516ed2e8-740d-4fd6-a7ef-41b8251a3fb1" name="global-prepare-error-response-sub-flow" />
+        </on-error-propagate>
+		
+    </error-handler>
+    <sub-flow name="global-prepare-error-response-sub-flow"
+		doc:id="23573812-1f7c-49d2-896e-fbe57c3b68e6">
+		<try doc:name="Try" doc:id="6c2908b4-831e-48e7-ae97-a3063768a02e" >
+			<set-variable value='#[if(vars.httpStatus?) &#10;	vars.httpStatus &#10;else if(!isEmpty(error.errorMessage.payload) and error.errorMessage.payload.errorCode?)&#10;	error.errorMessage.payload.errorCode&#10;else&#10;	"500"]' doc:name="Set HTTP Status" doc:id="74eaae28-5226-4ac9-b079-1af23bb28759" variableName="httpStatus" />
+			<set-variable value='#[%dw 2.0
+output application/java
+---
+(if(vars.errorMessage?) 
+	vars.errorMessage 
+else if(!isEmpty(error.errorMessage.payload) and error.errorMessage.payload.errorMessage?) 
+	error.errorMessage.payload.errorMessage
+else
+	error.exception.message) default ""]' doc:name="Set error message" doc:id="586553a7-08bc-4021-a1bd-8babc6fdd3a9" variableName="errorMessage" />
+			<set-variable value='#[%dw 2.0&#10;output application/java&#10;---&#10;(if(vars.errorDescription?) &#10;	vars.errorDescription &#10;else if(!isEmpty(error.errorMessage.payload) and error.errorMessage.payload.errorDescription?) &#10;	error.errorMessage.payload.errorDescription&#10;else if (error.exception.message != null)&#10;	error.exception.message&#10;else	&#10;	error.description) default ""]' doc:name="Set error description" doc:id="10fbd66f-a2f5-4f9d-8e6a-f34d29989671" variableName="errorDescription" />
+			<set-variable value='#[%dw 2.0&#10;output application/java&#10;---&#10;(if(vars.detailedResponse?) &#10;	vars.detailedResponse &#10;else if(!isEmpty(error.errorMessage.payload) and error.errorMessage.payload.detailedResponse?) &#10;	error.errorMessage.payload.detailedResponse&#10;else&#10;	null) default null]' doc:name="Set detailedResponse" doc:id="4a3c00d5-8a1e-49a9-b580-6aff1f9d1fa4" variableName="detailedResponse" />
+			<error-handler >
+				<on-error-continue enableNotifications="true" logException="false" doc:name="On Error Continue Unexpected error" doc:id="ebc55e67-0a41-41fb-9655-b1375382427b" type="ANY">
+					<set-variable value='500' doc:name="Set HTTP Status" doc:id="3892de4e-1a8e-40f6-b2df-2b8900c6e425" variableName="httpStatus" />
+					<set-variable value='Unexpected error.' doc:name="Set error message" doc:id="f5d365bf-d2fc-471a-868d-f4af70818602" variableName="errorMessage" />
+					<set-variable value='Unexpected error. Please contact with service administrator.' doc:name="Set error description" doc:id="0cf4b9d9-bf33-4007-8a35-bfac4e6a96b0" variableName="errorDescription" />
+					<set-variable value="#[null]" doc:name="Set detailedResponse" doc:id="5f2cb811-4266-4694-9340-13e6a89a9a45" variableName="detailedResponse" />
+				
+</on-error-continue>
+			</error-handler>
+		</try>
+		<flow-ref name="common-logger-subflow" doc:name="common-logger-subflow" />
+		<ee:transform doc:name="Compose Error Payload"
+			doc:id="229dc3eb-dd0b-406e-b0ad-c9cbb0ffd221">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	errorCode: vars.httpStatus as String default "500",
+	errorMessage: vars.errorMessage as String default "Internal Error",
+	errorDescription: vars.errorDescription as String default "",
+	detailedResponse : vars.detailedResponse default null,
+	correlationId: correlationId,
+	errorDateTime: now() as String { format: "yyyy-MM-dd'T'HH:mm:ss"}
+}]]>
+                </ee:set-payload>
+            </ee:message>
+        </ee:transform>
+    </sub-flow>    
+    
+    <sub-flow name="common-logger-subflow" doc:id="ecc600b4-72d8-4d51-af10-ee8e13a1bd34">
+		<ee:transform doc:name="Build error common log" doc:id="d1563f88-f662-4e59-bbe1-22d60429b63b" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="commonLogMessage" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"apiName" : vars.apiName default "",
+	"correlationId" : correlationId default "",
+	"errorCode": vars.httpStatus default 500,
+	"errorType": error.errorType default "",
+	"errorMessage": vars.errorMessage default "",
+	"errorDescription": vars.errorDescription default "",
+	"detailedResponse" : vars.detailedResponse default null,
+	"errorDateTime": now() as String {format: "yyyy-MM-dd hh:mm:ss"} default "",
+	"flow": vars.flow default "",
+	"businessAttributes": vars.businessAttributes default {} filterObject ((value, key, index) -> typeOf(value) != Object) pluck ((value, key, index) -> (key) ++ ": " ++ value) joinBy " - ",
+	"originalMessage": write(vars.originalPayload default {},'application/json')
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="6fc49033-f0c3-40f7-840d-146b20076f6f" message="#[output text/plain&#10;---&#10;&quot;\n&quot;   ++ (write(vars.commonLogMessage,'application/json'))]" />
+    
+</sub-flow>
+</mule>

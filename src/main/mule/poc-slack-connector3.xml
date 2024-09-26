@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:slack="http://www.mulesoft.org/schema/mule/slack"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/slack http://www.mulesoft.org/schema/mule/slack/current/mule-slack.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<http:request-config name="HTTP_Request_SLACK_API_configuration" doc:name="HTTP Request configuration" doc:id="659e7846-9633-44cf-b6c3-697491ac4fce" >
+		<http:request-connection protocol="HTTPS" host="slack.com/api" />
+	</http:request-config>
+
+	<flow name="create-channel-old-flow" >
+		<http:listener doc:name="Listener" config-ref="HTTP_Listener_config" path="/create-channel-old">
+			<http:response statusCode='#[vars.httpStatus default "200"]' />
+			<http:error-response statusCode='#[vars.httpStatus  default "500"]' >
+				<http:body ><![CDATA[#[output application/json --- payload]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<logger level="INFO" doc:name="Logger ini flow. create-channel-old-flow" doc:id="4655f1c9-c845-4433-81a6-da8134df8e06" message=" ini flow. create-channel-old-flow"/>
+		<ee:transform doc:name="Channel Details" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	name: "myRGr-channel"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<slack:create-conversationscreate doc:name="Create Channel" config-ref="Slack_Connector_Config"/>
+		<ee:transform doc:name="Payload as Json" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Result" message="#[payload]"/>
+		<logger level="INFO" doc:name="Logger fin flow. create-channel-old-flow1" doc:id="a56f16b3-13e6-46b4-8882-af496211fbe5" message=" fin flow. create-channel-old-flow" />
+		<error-handler ref="global-error-handler" />
+	
+</flow>
+  <flow name="create-channel-flow" >
+		<http:listener doc:name="Listener" config-ref="HTTP_Listener_config" path="/create-channel">
+			<http:response statusCode='#[vars.httpStatus  default "200"]' />
+			<http:error-response statusCode='#[vars.httpStatus  default "500"]' >
+				<http:body ><![CDATA[#[output application/json --- payload]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<logger level="INFO" doc:name="Logger ini flow. create-channel-flow" doc:id="cd41f1e2-e345-4245-8df5-f509e0b1c982" message="ini flow. create-channel-flow" />
+		<ee:transform doc:name="inputBody" doc:id="0693d725-bf26-473e-aad5-946092fe6bb4" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="inputBody" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"name" 			: payload.'name',
+	"is_private" 	: payload.'is_private'
+}
+]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<http:request method="POST" doc:name="Request create channel" doc:id="eedb5313-f833-4b01-8b62-9ed6b314f937"  sendBodyMode="AUTO" url="https://slack.com/api/conversations.create">
+			<http:body ><![CDATA[#[vars.inputBody]]]></http:body>
+			<http:headers ><![CDATA[#[{
+	"Content-Type" : "application/json",
+	"Authorization" : "Bearer " ++ p('http.request.slackapi.token')
+}]]]></http:headers>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="9ce6bb58-28df-4fc4-9607-e196314abb57" />
+		<logger level="INFO" doc:name="Logger fin flow. create-channel-flow" doc:id="2543e6a5-5aca-438e-a7ec-a4d00f1342c4" message="fini flow. create-channel-flow" />
+		<error-handler ref="global-error-handler" />
+	
+</flow>
+<flow name="send-message-to-channel-flow" >
+		<http:listener doc:name="Listener" config-ref="HTTP_Listener_config" path="/send-message">
+			<http:response statusCode='#[vars.httpStatus  default "200"]' />
+			<http:error-response statusCode='#[vars.httpStatus  default "500"]' >
+				<http:body ><![CDATA[#[output application/json --- payload]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<logger level="INFO" doc:name="Logger ini flow. send-message-to-channel-flow" doc:id="6b4c78d7-f361-4bb5-b1d3-e93419b247d9" message=" ini flow. send-message-to-channel-flow" />
+		<ee:transform doc:name="inputBody" doc:id="a07ab579-3680-4d4b-b6a3-630f4cfd0fef" >
+			<ee:message >
+			</ee:message>
+			<ee:variables >
+				<ee:set-variable variableName="inputBody" ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "channel"		: payload.channel,
+    ("text" 		: payload.text) if (!isEmpty(payload.text)),
+    ("as_user"		: payload.as_user) if (!isEmpty(payload.as_user)),
+    ("attachments"	: payload.attachments) if (!isEmpty(payload.attachments)),
+    ("blocks"		: payload.blocks) if (!isEmpty(payload.blocks)),
+    ("icon_emoji"	: payload.icon_emoji) if (!isEmpty(payload.icon_emoji)),
+    ("icon_url"		: payload.icon_url) if (!isEmpty(payload.icon_url)),
+    ("link_names"	: payload.link_names) if (!isEmpty(payload.link_names)),
+    ("metadata"		: payload.metadata) if (!isEmpty(payload.metadata)),
+    ("mrkdwn"		: payload.mrkdown) if (!isEmpty(payload.mrkdwn)),
+    ("username"		: payload.username) if (!isEmpty(payload.username))
+        
+
+}]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<http:request method="POST" doc:name="Request send message" doc:id="edbd4fe8-6e1d-4901-b779-18245a4e6ea5"  sendBodyMode="AUTO" url="https://slack.com/api/chat.postMessage">
+			<http:body ><![CDATA[#[vars.inputBody]]]></http:body>
+			<http:headers ><![CDATA[#[{
+	"Content-Type" : "application/json",
+	"Authorization" : "Bearer " ++ p('http.request.slackapi.token')
+}]]]></http:headers>
+		</http:request>
+		<logger level="INFO" doc:name="Logger" doc:id="7513d388-6fea-4429-986d-2ee3af5203c0" />
+		<logger level="INFO" doc:name="Logger fin flow. send-message-to-channel-flow1" doc:id="d3506fdd-b2e3-49a8-b9eb-beb9e79443a5" message="fin flow. send-message-to-channel-flow" />
+		<error-handler ref="global-error-handler" />
+	
+</flow>
+<flow name="send-message-to-channel-old-flow" >
+		<http:listener doc:name="Listener" config-ref="HTTP_Listener_config" path="/send-message-old">
+			<http:response statusCode='#[vars.httpStatus  default "200"]' />
+			<http:error-response statusCode='#[vars.httpStatus  default "500"]' >
+				<http:body ><![CDATA[#[output application/json --- payload]]]></http:body>
+			</http:error-response>
+		</http:listener>
+		<logger level="INFO" doc:name="Logger ini flow. send-message-to-channel-old-flow" doc:id="f3b7684a-379f-47bf-85ed-1790974c6c72" message=" ini flow. send-message-to-channel-old-flow" />
+		<ee:transform doc:name="Message Details" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	channel: "brainstorming",
+	text: "Your text goes here"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<slack:create-chatpost-message doc:name="Send Message" config-ref="Slack_Connector_Config"/>
+		<ee:transform doc:name="Payload as Json" >
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Result" message="#[payload]"/>
+		<logger level="INFO" doc:name="Logger fin flow. send-message-to-channel-old-flow" doc:id="3a07b803-8faf-4d3f-a48e-4a46cbf0d25e" message="fin flow. send-message-to-channel-old-flow" />
+		<error-handler ref="global-error-handler" />
+	
+</flow>
+</mule>
