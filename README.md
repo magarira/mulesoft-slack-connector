@@ -1,6 +1,6 @@
-<p>
+
     <img src="src/main/resources/images/slack_log_image.png" width="220" height="220" />
-</p>
+
 
 # Implementación API con SLACK CONNECTOR para MULESOFT
 
