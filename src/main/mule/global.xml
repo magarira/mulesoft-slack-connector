@@ -22,7 +22,10 @@ http://www.mulesoft.org/schema/mule/slack http://www.mulesoft.org/schema/mule/sl
 		</slack:slack-auth-connection>
 	</slack:config>
 	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" >
-		<http:listener-connection host="0.0.0.0" port="${secure::http.listener.port}" readTimeout="240000" connectionIdleTimeout="240000">
+		<http:listener-connection host="0.0.0.0" port="${secure::http.listener.port}" readTimeout="240000" connectionIdleTimeout="240000" protocol="HTTPS">
+			<tls:context >
+				<tls:key-store type="jks" path="keystoreRGR.jks" alias="mule" keyPassword="Rg031175" password="Rg031175" />
+			</tls:context>
 		</http:listener-connection>
 	</http:listener-config>
 </mule>
